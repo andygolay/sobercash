@@ -77,7 +77,7 @@ module sober_cash::sober_cash {
     }
     
     /// Initialize user's substance configuration
-    public fun initialize_user(account: &signer) {
+    public entry fun initialize_user(account: &signer) {
         let account_addr = signer::address_of(account);
         
         // Check if already initialized
@@ -93,7 +93,7 @@ module sober_cash::sober_cash {
     // ===== SUBSTANCE MANAGEMENT =====
     
     /// Add a new substance to user's configuration
-    public fun add_substance(
+    public entry fun add_substance(
         account: &signer,
         name: String,
         cost_per_day_cents: u64,
@@ -130,7 +130,7 @@ module sober_cash::sober_cash {
     }
     
     /// Remove a substance from user's configuration (soft delete)
-    public fun remove_substance(account: &signer, name: String) acquires SubstancesConfig {
+    public entry fun remove_substance(account: &signer, name: String) acquires SubstancesConfig {
         let account_addr = signer::address_of(account);
         assert!(exists<SubstancesConfig>(account_addr), E_NOT_INITIALIZED);
         
@@ -146,7 +146,7 @@ module sober_cash::sober_cash {
     }
     
     /// Update an existing substance
-    public fun update_substance(
+    public entry fun update_substance(
         account: &signer,
         name: String,
         cost_per_day_cents: u64,
