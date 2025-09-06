@@ -1,0 +1,14 @@
+[package]
+name = "sober_cash"
+version = "1.0.0"
+authors = []
+
+[addresses]
+sober_cash = "_"
+
+[dev-addresses]
+
+[dependencies]
+AptosFramework = { git = "https://github.com/movementlabsxyz/aptos-core.git", rev = "movement", subdir = "aptos-move/framework/aptos-framework"}
+
+[dev-dependencies]
