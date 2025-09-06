@@ -1,9 +1,0 @@
----
-profiles:
-  default:
-    network: Testnet
-    private_key: "0x5d4031e05c7ee89014874bb595fe0f85abace69ab12857b63ba4a6bc436783c0"
-    public_key: "0x6bd56f75a1de3ca266394f6ee7aabd715cb1dbdb1b8b6243b8e526a0eb8d9593"
-    account: a9fae76d9c8351aca596cbc2711827d3ab52d4e622bf24fb7e74d4444cf3933f
-    rest_url: "https://full.testnet.movementinfra.xyz/v1"
-    faucet_url: "https://faucet.testnet.movementinfra.xyz"

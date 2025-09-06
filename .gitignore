@@ -97,3 +97,7 @@ yarn-error.*
 
 # Temporary files created by Metro to check the health of the file watcher
 .metro-health-check*
+
+# Movement blockchain build artifacts
+**/.movement
+move/build/
