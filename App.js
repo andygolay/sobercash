@@ -1,12 +1,12 @@
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useState } from "react";
 
-import HomeScreen from './screens/HomeScreen';
-import PrivacyTermsScreen from './screens/PrivacyTermsScreen';
-import SettingsScreen from './screens/SettingsScreen';
-import SplashScreen from './screens/SplashScreen';
+import HomeScreen from "./screens/HomeScreen";
+import PrivacyTermsScreen from "./screens/PrivacyTermsScreen";
+import SettingsScreen from "./screens/SettingsScreen";
+import SplashScreen from "./screens/SplashScreen";
 
 const Stack = createStackNavigator();
 
