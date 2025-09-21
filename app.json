@@ -13,12 +13,18 @@
       "backgroundColor": "#ffffff"
     },
     "scheme": "sobercash",
+    "slug": "sobercash",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sobercash.app",
       "associatedDomains": [
         "applinks:sobercash.app"
-      ]
+      ],
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "petra"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {

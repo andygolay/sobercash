@@ -1,8 +1,12 @@
+import 'react-native-get-random-values';
+import 'react-native-url-polyfill/auto';
+
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
 
+import { PetraWalletProvider } from "./contexts/PetraWalletContext";
 import HomeScreen from "./screens/HomeScreen";
 import PrivacyTermsScreen from "./screens/PrivacyTermsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
@@ -14,7 +18,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate splash screen loading time
+    // Simulate splash screen loading
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 2000);
@@ -27,18 +31,20 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <StatusBar style="auto" />
-      <Stack.Navigator
-        initialRouteName="Home"
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="PrivacyTerms" component={PrivacyTermsScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <PetraWalletProvider>
+      <NavigationContainer>
+        <StatusBar style="auto" />
+        <Stack.Navigator
+          initialRouteName="Home"
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="PrivacyTerms" component={PrivacyTermsScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </PetraWalletProvider>
   );
 }
