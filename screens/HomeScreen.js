@@ -1,15 +1,54 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
-import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import StarryButton from "../components/StarryButton";
 import { usePetraWallet } from "../contexts/PetraWalletContext";
+import { contractService } from "../utils/contractService";
 
 export default function HomeScreen({ navigation }) {
   console.log('HomeScreen rendering...');
 
-  const { isConnected, walletAddress, isConnecting, connectWallet, disconnectWallet, signAndSubmitTransaction, signMessage, simulateConnection } = usePetraWallet();
+  const { isConnected, walletAddress, isConnecting, connectWallet, disconnectWallet, signAndSubmitTransaction, signMessage } = usePetraWallet();
+  const [savings, setSavings] = useState({ moneySaved: 0, timeSaved: 0 });
+  const [isLoadingSavings, setIsLoadingSavings] = useState(false);
 
   console.log('Wallet state:', { isConnected, walletAddress, isConnecting });
+  console.log('Savings state:', savings);
+
+  // Load savings data when wallet connects
+  useEffect(() => {
+    if (isConnected && walletAddress) {
+      loadSavingsData();
+    }
+  }, [isConnected, walletAddress]);
+
+  // Load savings data from the real contract
+  const loadSavingsData = async () => {
+    if (!isConnected || !walletAddress) return;
+
+    try {
+      setIsLoadingSavings(true);
+
+      // Call the real Move contract view functions
+      const realSavings = await contractService.getRealSavings(walletAddress);
+
+      setSavings({
+        moneySaved: realSavings.moneySavedDollars || 0,
+        timeSaved: realSavings.timeSavedHours || 0
+      });
+
+      console.log('Real savings from contract:', realSavings);
+    } catch (error) {
+      console.log('Error loading savings from contract:', error);
+      // Set to 0 if contract call fails
+      setSavings({
+        moneySaved: 0,
+        timeSaved: 0
+      });
+    } finally {
+      setIsLoadingSavings(false);
+    }
+  };
 
   const handleConnect = async () => {
     console.log('Connect button pressed!');
@@ -73,46 +112,25 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  const handleTestDeepLink = async () => {
-    try {
-      console.log('Testing deep link...');
-      await Linking.openURL('exp://vunyv2o-anonymous-8081.exp.direct/--/sobercash/connect?response=approved&data=test');
-    } catch (error) {
-      console.log('Error testing deep link:', error);
-      Alert.alert('Deep Link Test Failed', error.message);
-    }
-  };
-
-  const handleSimulateConnection = async () => {
-    try {
-      console.log('Simulating Petra connection...');
-      simulateConnection();
-    } catch (error) {
-      console.log('Error simulating connection:', error);
-      Alert.alert('Simulation Failed', error.message);
-    }
-  };
 
   return (
     <View style={styles.container}>
       <View style={styles.mainContent}>
         <Text style={styles.savingsText}>
-          You've saved $____ and ____ hours by staying sober!
+          {(() => {
+            console.log('Rendering savings text, isLoadingSavings:', isLoadingSavings, 'savings:', savings);
+            if (isLoadingSavings) {
+              return "Loading your savings...";
+            }
+
+            const moneyValue = typeof savings.moneySaved === 'number' ? savings.moneySaved : 0;
+            const timeValue = typeof savings.timeSaved === 'number' ? savings.timeSaved : 0;
+            console.log('Money value:', moneyValue, 'Time value:', timeValue);
+
+            return `You've saved $${moneyValue.toFixed(2)} and ${timeValue} hours by staying sober!`;
+          })()}
         </Text>
 
-        <TouchableOpacity
-          style={[styles.testButton, styles.deepLinkButton]}
-          onPress={handleTestDeepLink}
-        >
-          <Text style={styles.testButtonText}>Test Deep Link</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.testButton, styles.simulateButton]}
-          onPress={handleSimulateConnection}
-        >
-          <Text style={styles.testButtonText}>Simulate Connection</Text>
-        </TouchableOpacity>
 
         {isConnected && walletAddress && (
           <View style={styles.walletInfo}>
@@ -238,14 +256,6 @@ const styles = StyleSheet.create({
   },
   messageButton: {
     backgroundColor: "#17a2b8",
-    marginTop: 8,
-  },
-  deepLinkButton: {
-    backgroundColor: "#6f42c1",
-    marginTop: 8,
-  },
-  simulateButton: {
-    backgroundColor: "#fd7e14",
     marginTop: 8,
   },
 });

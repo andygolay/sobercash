@@ -100,4 +100,5 @@ yarn-error.*
 
 # Movement blockchain build artifacts
 **/.movement
+**/.aptos
 move/build/

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Modal,
@@ -12,24 +12,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { usePetraWallet } from "../contexts/PetraWalletContext";
+import { contractService } from "../utils/contractService";
 
 export default function SettingsScreen({ navigation }) {
-  const [exSubstances, setExSubstances] = useState([
-    {
-      id: "1",
-      name: "Jose Silver",
-      costPerDay: 35,
-      hoursPerDay: 3,
-      quitDate: "7/5/91",
-    },
-    {
-      id: "2",
-      name: "Fast food",
-      costPerDay: 20,
-      hoursPerDay: 1,
-      quitDate: "8/4/25",
-    },
-  ]);
+  const { isConnected, walletAddress, signAndSubmitTransaction } = usePetraWallet();
+  const [exSubstances, setExSubstances] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -39,9 +28,49 @@ export default function SettingsScreen({ navigation }) {
     hoursPerDay: "",
     quitDate: "",
   });
+  const [nameError, setNameError] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const removeSubstance = (id) => {
+  // Load substances from contract when wallet connects
+  useEffect(() => {
+    if (isConnected && walletAddress) {
+      loadSubstancesFromContract();
+    }
+  }, [isConnected, walletAddress]);
+
+  // Load substances from the blockchain
+  const loadSubstancesFromContract = async () => {
+    if (!isConnected || !walletAddress) return;
+
+    try {
+      setIsLoading(true);
+      // Just log that we're connected - don't auto-initialize
+      console.log('Wallet connected, ready to add substances');
+    } catch (error) {
+      console.log('Error loading substances:', error);
+      Alert.alert('Error', 'Failed to load substances from blockchain');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initialize user on the blockchain
+  const initializeUser = async () => {
+    try {
+      const transaction = contractService.initializeUser();
+      await signAndSubmitTransaction(transaction, 'User initialized on blockchain!');
+    } catch (error) {
+      console.log('Error initializing user:', error);
+      Alert.alert('Error', 'Failed to initialize user on blockchain');
+    }
+  };
+
+  const removeSubstance = async (id) => {
+    if (!isConnected) {
+      Alert.alert('Error', 'Please connect your wallet first');
+      return;
+    }
+
     Alert.alert(
       "Remove Substance",
       "Are you sure you want to remove this ex-substance?",
@@ -50,8 +79,22 @@ export default function SettingsScreen({ navigation }) {
         {
           text: "Remove",
           style: "destructive",
-          onPress: () =>
-            setExSubstances(exSubstances.filter((item) => item.id !== id)),
+          onPress: async () => {
+            try {
+              const substance = exSubstances.find(item => item.id === id);
+              if (substance) {
+                // Call contract to remove substance
+                const transaction = contractService.removeSubstance(substance.name);
+                await signAndSubmitTransaction(transaction, `Substance ${substance.name} removed!`);
+
+                // Update local state
+                setExSubstances(exSubstances.filter((item) => item.id !== id));
+              }
+            } catch (error) {
+              console.log('Error removing substance:', error);
+              Alert.alert('Error', 'Failed to remove substance from blockchain');
+            }
+          },
         },
       ],
     );
@@ -61,12 +104,28 @@ export default function SettingsScreen({ navigation }) {
     setShowAddModal(true);
   };
 
-  const handleAddSubstance = () => {
+  const handleAddSubstance = async () => {
+    if (!isConnected || !walletAddress) {
+      Alert.alert('Error', 'Please connect your wallet first');
+      return;
+    }
+
     // Validate inputs
     if (!newSubstance.name.trim()) {
       Alert.alert("Error", "Please enter a substance name");
       return;
     }
+
+    // Check for duplicate substance names
+    const substanceName = newSubstance.name.trim();
+    const existingSubstance = exSubstances.find(substance =>
+      substance.name.toLowerCase() === substanceName.toLowerCase()
+    );
+    if (existingSubstance) {
+      Alert.alert("Error", "Please add a substance with a unique name.");
+      return;
+    }
+
     if (!newSubstance.costPerDay || isNaN(Number(newSubstance.costPerDay))) {
       Alert.alert("Error", "Please enter a valid cost per day");
       return;
@@ -84,23 +143,79 @@ export default function SettingsScreen({ navigation }) {
       return;
     }
 
-    // Add new substance
-    const substance = {
-      id: Date.now().toString(),
-      name: newSubstance.name.trim(),
-      costPerDay: Number(newSubstance.costPerDay),
-      hoursPerDay: Number(newSubstance.hoursPerDay),
-      quitDate: newSubstance.quitDate.trim(),
-    };
+    try {
+      // Check if wallet is properly connected
+      if (!isConnected || !walletAddress) {
+        Alert.alert('Error', 'Wallet not properly connected. Please reconnect.');
+        return;
+      }
 
-    setExSubstances([...exSubstances, substance]);
-    setNewSubstance({
-      name: "",
-      costPerDay: "",
-      hoursPerDay: "",
-      quitDate: "",
-    });
-    setShowAddModal(false);
+      // Check if user is already initialized before trying to initialize
+      console.log('Checking if user is initialized...');
+      const isInitialized = await contractService.isUserInitialized(walletAddress);
+      console.log('User initialized status:', isInitialized);
+
+      if (!isInitialized) {
+        try {
+          console.log('User not initialized, initializing now...');
+          const initTransaction = contractService.initializeUser();
+          await signAndSubmitTransaction(initTransaction);
+          console.log('User initialized successfully');
+        } catch (initError) {
+          console.log('Error initializing user:', initError.message);
+          Alert.alert('Error', 'Failed to initialize user on blockchain');
+          return;
+        }
+      } else {
+        console.log('User already initialized, skipping initialization');
+      }
+
+      // Convert quit date to timestamp
+      const quitDate = new Date(selectedDate);
+      const quitTimestamp = Math.floor(quitDate.getTime() / 1000);
+
+      // Convert cost to cents
+      const costPerDayCents = Math.floor(Number(newSubstance.costPerDay) * 100);
+
+      // Call contract to add substance
+      console.log('Creating add_substance transaction...');
+      const transaction = contractService.addSubstance(
+        newSubstance.name.trim(),
+        costPerDayCents,
+        Number(newSubstance.hoursPerDay),
+        quitTimestamp
+      );
+      console.log('Add substance transaction:', transaction);
+
+      console.log('Sending add_substance transaction to Petra...');
+      await signAndSubmitTransaction(transaction, `Substance ${newSubstance.name.trim()} added!`);
+      console.log('Add substance transaction sent successfully');
+
+      // Add to local state
+      const substance = {
+        id: Date.now().toString(),
+        name: newSubstance.name.trim(),
+        costPerDay: Number(newSubstance.costPerDay),
+        hoursPerDay: Number(newSubstance.hoursPerDay),
+        quitDate: newSubstance.quitDate.trim(),
+        quitTimestamp: quitTimestamp,
+        isActive: true,
+      };
+
+      setExSubstances([...exSubstances, substance]);
+      setNewSubstance({
+        name: "",
+        costPerDay: "",
+        hoursPerDay: "",
+        quitDate: "",
+      });
+      setShowAddModal(false);
+
+      // Success message will be shown by Petra wallet context after transaction completes
+    } catch (error) {
+      console.log('Error adding substance:', error);
+      Alert.alert('Error', 'Failed to add substance to blockchain');
+    }
   };
 
   const cancelAddSubstance = () => {

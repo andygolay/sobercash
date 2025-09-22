@@ -33,6 +33,9 @@ export const PetraWalletProvider = ({ children }) => {
   const [publicKey, setPublicKey] = useState(null);
   const [sharedPublicKey, setSharedPublicKey] = useState(null);
 
+  // Success message state
+  const [pendingSuccessMessage, setPendingSuccessMessage] = useState(null);
+
   // Generate key pair - exactly like official example
   const generateAndSaveKeyPair = () => {
     const keyPair = nacl.box.keyPair();
@@ -48,6 +51,10 @@ export const PetraWalletProvider = ({ children }) => {
       setIsConnecting(true);
 
       const keyPair = generateAndSaveKeyPair();
+      console.log('Generated key pair:', {
+        hasSecretKey: !!keyPair.secretKey,
+        hasPublicKey: !!keyPair.publicKey
+      });
 
       const data = {
         appInfo: APP_INFO,
@@ -96,13 +103,25 @@ export const PetraWalletProvider = ({ children }) => {
   };
 
   // Sign and submit transaction - exactly like official example
-  const signAndSubmitTransaction = async (transaction) => {
+  const signAndSubmitTransaction = async (transaction, successMessage = null) => {
+    console.log('Transaction signing state:', {
+      isConnected,
+      hasSharedPublicKey: !!sharedPublicKey,
+      hasPublicKey: !!publicKey,
+      walletAddress
+    });
+
     if (!sharedPublicKey) {
-      throw new Error('Missing shared public key');
+      throw new Error('Missing shared public key. Please reconnect your wallet through Petra.');
     }
 
     if (!publicKey) {
-      throw new Error('Missing public key');
+      throw new Error('Missing public key. Please reconnect your wallet through Petra.');
+    }
+
+    // Store success message for later display
+    if (successMessage) {
+      setPendingSuccessMessage(successMessage);
     }
 
     try {
@@ -177,6 +196,8 @@ export const PetraWalletProvider = ({ children }) => {
   // Deep link handling - exactly like official example
   useEffect(() => {
     const handleConnectionApproval = (data) => {
+      console.log('handleConnectionApproval called with data:', data);
+
       if (data === null) {
         throw new Error('Missing data from Petra response');
       }
@@ -192,6 +213,13 @@ export const PetraWalletProvider = ({ children }) => {
         new Uint8Array(Buffer.from(petraPublicEncryptedKey.slice(2), 'hex')),
         secretKey,
       );
+
+      console.log('Encryption keys established:', {
+        hasSharedPublicKey: !!sharedEncryptionSecretKey,
+        hasSecretKey: !!secretKey,
+        hasPublicKey: !!publicKey
+      });
+
       setSharedPublicKey(sharedEncryptionSecretKey);
       setIsConnected(true);
       setWalletAddress(address); // Use real address from Petra
@@ -222,6 +250,12 @@ export const PetraWalletProvider = ({ children }) => {
       const params = new URLSearchParams(urlObject.search);
       console.log('URL pathname:', urlObject.pathname);
       console.log('URL params:', Object.fromEntries(params.entries()));
+      console.log('Current wallet state before processing:', {
+        isConnected,
+        hasSharedPublicKey: !!sharedPublicKey,
+        hasPublicKey: !!publicKey,
+        walletAddress
+      });
 
       switch (urlObject.pathname) {
         case '/--/sobercash/connect': {
@@ -235,10 +269,20 @@ export const PetraWalletProvider = ({ children }) => {
               try {
                 const parsedResponse = JSON.parse(atob(data));
                 console.log('Petra response:', parsedResponse);
-                Alert.alert('Success', 'Operation completed successfully!');
+                
+                // Show the pending success message if we have one
+                if (pendingSuccessMessage) {
+                  Alert.alert('Success', pendingSuccessMessage);
+                  setPendingSuccessMessage(null);
+                }
               } catch (error) {
                 console.log('Error parsing response data:', error);
-                Alert.alert('Success', 'Operation completed successfully!');
+                
+                // Show the pending success message even if parsing fails
+                if (pendingSuccessMessage) {
+                  Alert.alert('Success', pendingSuccessMessage);
+                  setPendingSuccessMessage(null);
+                }
               }
             }
           } else if (params.get('response') === 'rejected') {
@@ -257,42 +301,6 @@ export const PetraWalletProvider = ({ children }) => {
     };
   }, [secretKey]);
 
-  // Test function to simulate Petra connection
-  const simulateConnection = () => {
-    console.log('Simulating Petra connection...');
-
-    if (!secretKey) {
-      console.log('No secret key, generating one...');
-      generateAndSaveKeyPair();
-    }
-
-    // Generate a proper 32-byte public key for simulation
-    const mockPetraKeyPair = nacl.box.keyPair();
-    const mockData = btoa(JSON.stringify({
-      petraPublicEncryptedKey: '0x' + Buffer.from(mockPetraKeyPair.publicKey).toString('hex')
-    }));
-
-    console.log('Mock data:', mockData);
-
-    // Simulate the connection approval directly
-    try {
-      const { petraPublicEncryptedKey } = JSON.parse(atob(mockData));
-      console.log('Parsed petraPublicEncryptedKey:', petraPublicEncryptedKey);
-
-      const sharedEncryptionSecretKey = nacl.box.before(
-        new Uint8Array(Buffer.from(petraPublicEncryptedKey.slice(2), 'hex')),
-        secretKey,
-      );
-      setSharedPublicKey(sharedEncryptionSecretKey);
-      setIsConnected(true);
-      setWalletAddress('0x' + Math.random().toString(16).substr(2, 40)); // Mock address
-      setIsConnecting(false);
-      Alert.alert('Success', 'Simulated connection to Petra wallet!');
-    } catch (error) {
-      console.log('Error in simulation:', error);
-      Alert.alert('Simulation Error', error.message);
-    }
-  };
 
   const value = {
     isConnected,
@@ -302,7 +310,6 @@ export const PetraWalletProvider = ({ children }) => {
     disconnectWallet,
     signAndSubmitTransaction,
     signMessage,
-    simulateConnection,
   };
 
   return (

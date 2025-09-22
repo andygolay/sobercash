@@ -50,6 +50,10 @@ module sober_cash::sober_cash {
         substances: SimpleMap<String, Substance>,
         /// Total number of active substances
         active_count: u64,
+        /// Total money saved in cents (updated when substances are added/removed)
+        total_money_saved_cents: u128,
+        /// Total time saved in hours (updated when substances are added/removed)
+        total_time_saved_hours: u128,
     }
     
     /// Global statistics for the app
@@ -87,6 +91,8 @@ module sober_cash::sober_cash {
         move_to(account, SubstancesConfig {
             substances: simple_map::create<String, Substance>(),
             active_count: 0,
+            total_money_saved_cents: 0,
+            total_time_saved_hours: 0,
         });
     }
 
@@ -124,9 +130,19 @@ module sober_cash::sober_cash {
             is_active: true,
         };
         
+        // Calculate savings for this substance
+        let current_timestamp = aptos_framework::timestamp::now_seconds();
+        let days_sober = (current_timestamp - quit_timestamp) / 86400;
+        let money_saved = (days_sober as u128) * (cost_per_day_cents as u128);
+        let time_saved = (days_sober as u128) * (hours_per_day as u128);
+        
         // Add to configuration
         simple_map::add(&mut config.substances, name, substance);
         config.active_count = config.active_count + 1;
+        
+        // Update totals
+        config.total_money_saved_cents = config.total_money_saved_cents + money_saved;
+        config.total_time_saved_hours = config.total_time_saved_hours + time_saved;
     }
     
     /// Remove a substance from user's configuration (soft delete)
@@ -137,12 +153,23 @@ module sober_cash::sober_cash {
         let config = borrow_global_mut<SubstancesConfig>(account_addr);
         assert!(simple_map::contains_key(&config.substances, &name), E_SUBSTANCE_NOT_FOUND);
         
-        // Get the substance and mark as inactive
+        // Get the substance and calculate its current savings
         let substance = simple_map::borrow_mut(&mut config.substances, &name);
         assert!(substance.is_active, E_SUBSTANCE_NOT_FOUND);
         
+        // Calculate current savings for this substance
+        let current_timestamp = aptos_framework::timestamp::now_seconds();
+        let days_sober = (current_timestamp - substance.quit_timestamp) / 86400;
+        let money_saved = (days_sober as u128) * (substance.cost_per_day_cents as u128);
+        let time_saved = (days_sober as u128) * (substance.hours_per_day as u128);
+        
+        // Mark as inactive and update counts
         substance.is_active = false;
         config.active_count = config.active_count - 1;
+        
+        // Subtract from totals (this handles the relapse scenario)
+        config.total_money_saved_cents = config.total_money_saved_cents - money_saved;
+        config.total_time_saved_hours = config.total_time_saved_hours - time_saved;
     }
     
     /// Update an existing substance
@@ -173,24 +200,20 @@ module sober_cash::sober_cash {
     
     #[view]
     /// Calculate total money saved by user (in dollars)
-    public fun calculate_money_saved_dollars(account_addr: address): u128 {
+    public fun calculate_money_saved_dollars(account_addr: address): u128 acquires SubstancesConfig {
         assert!(exists<SubstancesConfig>(account_addr), E_NOT_INITIALIZED);
         
-        // Note: In Move 1, we can't iterate over SimpleMap directly
-        // This is a simplified version that would need to be implemented differently
-        // For now, we'll return 0 as a placeholder
-        0
+        let config = borrow_global<SubstancesConfig>(account_addr);
+        config.total_money_saved_cents / 100 // Convert cents to dollars
     }
     
     #[view]
     /// Calculate total time saved by user (in hours)
-    public fun calculate_time_saved_hours(account_addr: address): u128 {
+    public fun calculate_time_saved_hours(account_addr: address): u128 acquires SubstancesConfig {
         assert!(exists<SubstancesConfig>(account_addr), E_NOT_INITIALIZED);
         
-        // Note: In Move 1, we can't iterate over SimpleMap directly
-        // This is a simplified version that would need to be implemented differently
-        // For now, we'll return 0 as a placeholder
-        0
+        let config = borrow_global<SubstancesConfig>(account_addr);
+        config.total_time_saved_hours
     }
     
     #[view]
@@ -234,7 +257,7 @@ module sober_cash::sober_cash {
     // ===== ADMIN FUNCTIONS =====
     
     /// Update global statistics (called internally)
-    fun update_global_stats(account_addr: address) acquires GlobalStats {
+    fun update_global_stats(account_addr: address) acquires SubstancesConfig, GlobalStats {
         let user_money = calculate_money_saved_dollars(account_addr);
         let user_time = calculate_time_saved_hours(account_addr);
         
@@ -271,19 +294,18 @@ module sober_cash::sober_cash {
         let money_saved = calculate_money_saved_dollars(signer::address_of(account));
         let time_saved = calculate_time_saved_hours(signer::address_of(account));
         
-        // Note: These functions currently return 0 as placeholders due to Move 1 SimpleMap iteration limitations
-        // In a real implementation, they would calculate:
+        // Now these functions actually work! Calculate expected values:
         // Cigarettes: 1 day * $10 = $10
         // Alcohol: 2 days * $20 = $40  
         // Coffee: 3 days * $5 = $15
         // Total money: $65
-        assert!(money_saved == 0, 0);
+        assert!(money_saved == 65, 0);
         
         // Expected time:
         // Cigarettes: 1 day * 2 hours = 2 hours
         // Alcohol: 2 days * 3 hours = 6 hours
         // Coffee: 3 days * 1 hour = 3 hours
         // Total time: 11 hours
-        assert!(time_saved == 0, 1);
+        assert!(time_saved == 11, 1);
     }
 }
