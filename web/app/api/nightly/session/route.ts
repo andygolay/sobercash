@@ -15,6 +15,7 @@ function generateSessionId(): string {
 export async function POST(_req: NextRequest) {
   const sessionId = generateSessionId();
   sessions.set(sessionId, { createdAt: Date.now() });
+  console.log(`[SOBERCASH API] Created new session: ${sessionId}`);
   return new Response(JSON.stringify({ sessionId }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' }

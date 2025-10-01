@@ -23,42 +23,56 @@ export default function HomePage() {
   const [sharedSecret, setSharedSecret] = useState<Uint8Array | null>(null);
 
   const addDebugLog = (message: string) => {
-    console.log(message);
+    const logMessage = `[SOBERCASH DEBUG] ${new Date().toLocaleTimeString()}: ${message}`;
+    console.log(logMessage);
     setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+
+    // Send to server for terminal logging
+    fetch('/api/debug', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: logMessage })
+    }).catch(() => { }); // Ignore errors
   };
 
   const signTransactionViaDeeplink = async (payload: any) => {
     try {
-      addDebugLog('Starting deeplink transaction signing...');
+      addDebugLog('=== STARTING TRANSACTION SIGNING ===');
+      addDebugLog(`Payload: ${JSON.stringify(payload, null, 2)}`);
 
       if (!sharedSecret) {
-        addDebugLog('No shared secret available - need to reconnect');
+        addDebugLog('❌ No shared secret available - need to reconnect');
         setStatus('Please reconnect to Nightly first');
         return { hash: "error" };
       }
+      addDebugLog('✅ Shared secret available');
 
       // Create a server session for this transaction
+      addDebugLog('Creating server session...');
       const res = await fetch('/api/nightly/session', { method: 'POST' });
       if (!res.ok) throw new Error('Failed to create session');
       const { sessionId } = await res.json();
-      addDebugLog(`Transaction session created: ${sessionId}`);
+      addDebugLog(`✅ Transaction session created: ${sessionId}`);
 
       // Build transaction payload for Movement
       const transactionPayload = {
         transactions: [JSON.stringify({ rawTransaction: payload })],
         options: { submit: true } // Let Nightly submit the transaction
       };
+      addDebugLog(`Transaction payload: ${JSON.stringify(transactionPayload, null, 2)}`);
 
       // Encrypt the transaction payload using the shared secret
+      addDebugLog('Encrypting transaction payload...');
       const { nonceBase58, payloadBase64 } = encryptWithSharedKey(
         sharedSecret,
         JSON.stringify(transactionPayload)
       );
+      addDebugLog(`✅ Encrypted - nonce: ${nonceBase58.substring(0, 20)}..., payload: ${payloadBase64.substring(0, 50)}...`);
 
       // Build signTransactions payload
       const dataObj = {
         network: 'movement',
-        cluster: 'testnet',
+        cluster: 'mainnet',
         responseRoute: `${window.location.origin}/home?txSessionId=${sessionId}`,
         payload: payloadBase64,
         nonce: nonceBase58,
@@ -66,16 +80,19 @@ export default function HomePage() {
         address: address,
         appInfo: { name: 'SoberCash', icon: `${window.location.origin}/vercel.svg`, url: window.location.origin },
       };
+      addDebugLog(`Data object: ${JSON.stringify(dataObj, null, 2)}`);
 
       const data = btoa(JSON.stringify(dataObj));
       const url = `nightly://v1/direct/signTransactions?data=${encodeURIComponent(data)}`;
 
+      addDebugLog(`🔗 Nightly URL: ${url}`);
       addDebugLog('Opening Nightly for transaction signing...');
       window.location.href = url;
 
       return { hash: "deeplink-tx-pending" };
     } catch (e) {
-      addDebugLog(`Transaction signing error: ${(e as Error).message}`);
+      addDebugLog(`❌ Transaction signing error: ${(e as Error).message}`);
+      addDebugLog(`Error stack: ${(e as Error).stack}`);
       throw e;
     }
   };
@@ -101,12 +118,22 @@ export default function HomePage() {
     addDebugLog(`Fixed search: ${fixedSearch}`);
     addDebugLog(`URL params: connectSessionId=${connectSessionId}, txSessionId=${txSessionId}, dataParam=${dataParam ? 'present' : 'missing'}`);
 
-    if (connectSessionId && dataParam) {
-      addDebugLog('Found Nightly connect response, handling...');
-      handleNightlyResponse(connectSessionId, dataParam);
-    } else if (txSessionId && dataParam) {
-      addDebugLog('Found Nightly transaction response, handling...');
-      handleTransactionResponse(txSessionId, dataParam);
+    // If this is a redirect from Nightly, process it and close the window
+    if (connectSessionId || txSessionId) {
+      addDebugLog('Nightly redirect detected - processing and closing window');
+
+      if (connectSessionId && dataParam) {
+        addDebugLog('Found Nightly connect response, handling...');
+        handleNightlyResponse(connectSessionId, dataParam);
+      } else if (txSessionId && dataParam) {
+        addDebugLog('Found Nightly transaction response, handling...');
+        handleTransactionResponse(txSessionId, dataParam);
+      }
+
+      // Close this window after processing
+      setTimeout(() => {
+        window.close();
+      }, 2000);
     } else {
       addDebugLog('No Nightly response parameters found');
     }
@@ -279,7 +306,7 @@ export default function HomePage() {
                 // Build connect payload - redirect directly back to /home
                 const dataObj = {
                   network: 'movement',
-                  cluster: 'testnet',
+                  cluster: 'mainnet',
                   responseRoute: `${window.location.origin}/home?connectSessionId=${sessionId}`,
                   appInfo: { name: 'SoberCash', icon: `${window.location.origin}/vercel.svg`, url: window.location.origin },
                   dappEncryptionPublicKey: kp.publicKey58,
@@ -396,7 +423,15 @@ export default function HomePage() {
           <button
             className="btn"
             onClick={async () => {
+              console.log('BUTTON CLICKED - TESTING SERVER LOG');
+              fetch('/api/debug', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: 'BUTTON CLICKED - TESTING SERVER LOG' })
+              }).then(() => console.log('Sent to server')).catch(e => console.log('Server error:', e));
+
               try {
+                addDebugLog('=== TEST TRANSFER BUTTON CLICKED ===');
                 const testTx = {
                   arguments: [
                     '0x0000000000000000000000000000000000000000000000000000000000000001',
@@ -414,6 +449,7 @@ export default function HomePage() {
                   alert('Transaction sent!');
                 }
               } catch (e) {
+                addDebugLog(`Test transfer error: ${(e as Error).message}`);
                 alert('Transaction failed: ' + (e as Error).message);
               }
             }}

@@ -1,4 +1,4 @@
-export const FULLNODE_URL = 'https://testnet.movementnetwork.xyz/v1';
+export const FULLNODE_URL = 'https://full.mainnet.movementinfra.xyz/v1';
 export const CHAIN_ID = '250';
 export const CONTRACT_ADDRESS = '0xbebf677e294f85de30ab41157010eb9953c599d3f2f6ca1210396aa43680eef9';
 export const CONTRACT_MODULE = `${CONTRACT_ADDRESS}::sober_cash`;
