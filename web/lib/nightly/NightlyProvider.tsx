@@ -12,6 +12,7 @@ type NightlyCtx = {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   signAndSubmit: (payload: any) => Promise<any>;
+  setAddress: (address: string) => void;
 };
 
 const Ctx = createContext<NightlyCtx | undefined>(undefined);
@@ -73,6 +74,16 @@ export function NightlyConnectAptosProvider({ children }: { children: ReactNode 
     setError(null);
   };
 
+  const setAddressFromDeeplink = (address: string) => {
+    setAddress(address);
+    setClient({ kind: 'deeplink' }); // Mark as connected via deeplink
+  };
+
+  const signTransactionViaDeeplink = async (payload: any) => {
+    // This will be implemented in the Home page where we have access to the deeplink utilities
+    throw new Error("Deeplink transaction signing should be handled in the Home page component");
+  };
+
   const signAndSubmit = async (payload: any) => {
     if (extAptos) {
       // Normalize payload to AIP-63 SimpleTransaction and include gas options & chainId
@@ -101,12 +112,18 @@ export function NightlyConnectAptosProvider({ children }: { children: ReactNode 
         return await extAptos.signAndSubmitTransaction?.({ data: payload });
       }
     }
+
+    // Handle deeplink signing flow
+    if (client && client.kind === 'deeplink') {
+      return await signTransactionViaDeeplink(payload);
+    }
+
     if (!client) throw new Error("Not connected");
     throw new Error("Nightly session signing flow not yet implemented");
   };
 
   const value = useMemo<NightlyCtx>(
-    () => ({ client, connected: Boolean(client), address, connect, disconnect, signAndSubmit }),
+    () => ({ client, connected: Boolean(client), address, connect, disconnect, signAndSubmit, setAddress: setAddressFromDeeplink }),
     [client, address]
   );
 
