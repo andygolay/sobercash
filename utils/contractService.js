@@ -73,7 +73,8 @@ export class ContractService {
    */
   async callViewFunction(functionName, args = []) {
     try {
-      const response = await fetch('https://fullnode.testnet.aptoslabs.com/v1/view', {
+      // Movement testnet fullnode
+      const response = await fetch('https://full.testnet.movementinfra.xyz/v1/view', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

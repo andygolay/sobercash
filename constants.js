@@ -1,8 +1,8 @@
 // Contract address - will be updated after deployment
-export const CONTRACT_ADDRESS = "0xae9d7dbe2f49ba692cb6e81db6bfd6b7adb17cf5ee7a855f86af3c7336878a6d";
+export const CONTRACT_ADDRESS = "0xbebf677e294f85de30ab41157010eb9953c599d3f2f6ca1210396aa43680eef9";
 
 // Contract module and function names
-export const CONTRACT_MODULE = "0xae9d7dbe2f49ba692cb6e81db6bfd6b7adb17cf5ee7a855f86af3c7336878a6d::sober_cash";
+export const CONTRACT_MODULE = "0xbebf677e294f85de30ab41157010eb9953c599d3f2f6ca1210396aa43680eef9::sober_cash";
 
 // Function names
 export const FUNCTIONS = {

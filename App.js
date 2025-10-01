@@ -6,7 +6,7 @@ import { createStackNavigator } from "@react-navigation/stack";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from 'react';
 
-import { PetraWalletProvider } from "./contexts/PetraWalletContext";
+import { NightlyWalletProvider } from "./contexts/NightlyWalletContext";
 import HomeScreen from "./screens/HomeScreen";
 import PrivacyTermsScreen from "./screens/PrivacyTermsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
@@ -30,21 +30,21 @@ export default function App() {
     return <SplashScreen />;
   }
 
-  return (
-    <PetraWalletProvider>
-      <NavigationContainer>
-        <StatusBar style="auto" />
-        <Stack.Navigator
-          initialRouteName="Home"
-          screenOptions={{
-            headerShown: false,
-          }}
-        >
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="PrivacyTerms" component={PrivacyTermsScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </PetraWalletProvider>
-  );
+        return (
+          <NightlyWalletProvider>
+            <NavigationContainer>
+              <StatusBar style="auto" />
+              <Stack.Navigator
+                initialRouteName="Home"
+                screenOptions={{
+                  headerShown: false,
+                }}
+              >
+                <Stack.Screen name="Home" component={HomeScreen} />
+                <Stack.Screen name="PrivacyTerms" component={PrivacyTermsScreen} />
+                <Stack.Screen name="Settings" component={SettingsScreen} />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </NightlyWalletProvider>
+        );
 }

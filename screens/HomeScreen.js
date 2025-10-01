@@ -2,13 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import StarryButton from "../components/StarryButton";
-import { usePetraWallet } from "../contexts/PetraWalletContext";
+import { useNightlyWallet } from "../contexts/NightlyWalletContext";
 import { contractService } from "../utils/contractService";
 
 export default function HomeScreen({ navigation }) {
   console.log('HomeScreen rendering...');
 
-  const { isConnected, walletAddress, isConnecting, connectWallet, disconnectWallet, signAndSubmitTransaction, signMessage } = usePetraWallet();
+  const { isConnected, walletAddress, isConnecting, connectWallet, disconnectWallet, signAndSubmitTransaction, signMessage } = useNightlyWallet();
   const [savings, setSavings] = useState({ moneySaved: 0, timeSaved: 0 });
   const [isLoadingSavings, setIsLoadingSavings] = useState(false);
 

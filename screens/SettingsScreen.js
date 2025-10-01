@@ -12,11 +12,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { usePetraWallet } from "../contexts/PetraWalletContext";
+import { useNightlyWallet } from "../contexts/NightlyWalletContext";
 import { contractService } from "../utils/contractService";
 
 export default function SettingsScreen({ navigation }) {
-  const { isConnected, walletAddress, signAndSubmitTransaction } = usePetraWallet();
+  const { isConnected, walletAddress, signAndSubmitTransaction } = useNightlyWallet();
   const [exSubstances, setExSubstances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 

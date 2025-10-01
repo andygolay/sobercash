@@ -3,6 +3,7 @@
     "name": "SoberCash",
     "slug": "sobercash",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,15 +17,7 @@
     "slug": "sobercash",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sobercash.app",
-      "associatedDomains": [
-        "applinks:sobercash.app"
-      ],
-      "infoPlist": {
-        "LSApplicationQueriesSchemes": [
-          "petra"
-        ]
-      }
+      "bundleIdentifier": "com.sobercash.app"
     },
     "android": {
       "adaptiveIcon": {
