@@ -1,61 +1,45 @@
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-
-// Configure Aptos SDK for Movement Network
-const config = new AptosConfig({
-  network: Network.CUSTOM,
-  fullnode: "https://full.mainnet.movementinfra.xyz/v1",
-  chainId: 126, // Movement Mainnet chain ID
-});
-
-const aptos = new Aptos(config);
+import { Aptos, AptosConfig, Network, Serializer } from '@aptos-labs/ts-sdk';
+import { Buffer } from 'buffer';
 
 export async function buildMovementTransferRaw(
-  senderAddress: string,
-  receiverAddress: string,
-  amount: number
+  sender: string,
+  receiver: string,
+  amountOctas: number,
 ): Promise<string> {
+  const config = new AptosConfig({
+    network: Network.CUSTOM,
+    fullnode: 'https://full.mainnet.movementinfra.xyz/v1',
+  });
+  const aptos = new Aptos(config);
+
+  // Get account info to ensure proper sequence number
   try {
-    // Create a simple coin transfer transaction
-    const transaction = await aptos.transaction.build.simple({
-      sender: senderAddress,
-      data: {
-        function: "0x1::coin::transfer",
-        typeArguments: ["0x1::aptos_coin::AptosCoin"],
-        functionArguments: [receiverAddress, amount],
-      },
-    });
-
-    // Get the raw transaction bytes - try different API methods
-    let rawTransaction;
-    try {
-      // Try the rawTransaction method
-      rawTransaction = await aptos.transaction.build.rawTransaction({
-        sender: senderAddress,
-        data: {
-          function: "0x1::coin::transfer",
-          typeArguments: ["0x1::aptos_coin::AptosCoin"],
-          functionArguments: [receiverAddress, amount],
-        },
-      });
-    } catch (e) {
-      // Fallback to simple transaction and serialize it
-      rawTransaction = await aptos.transaction.build.simple({
-        sender: senderAddress,
-        data: {
-          function: "0x1::coin::transfer",
-          typeArguments: ["0x1::aptos_coin::AptosCoin"],
-          functionArguments: [receiverAddress, amount],
-        },
-      });
-    }
-
-    // Convert to hex string
-    const rawHex = Buffer.from(rawTransaction).toString('hex');
-    return `0x${rawHex}`;
-  } catch (error) {
-    console.error('Error building Movement transfer raw transaction:', error);
-    throw error;
+    const accountInfo = await aptos.account.getAccountInfo({ accountAddress: sender });
+    console.log('Account sequence number:', accountInfo.sequence_number);
+  } catch (e) {
+    console.warn('Failed to get account info:', e);
   }
+
+  const tx = await aptos.transaction.build.simple({
+    sender,
+    data: {
+      function: '0x1::aptos_account::transfer_coins',
+      typeArguments: ['0x1::aptos_coin::AptosCoin'],
+      functionArguments: [receiver, amountOctas],
+    },
+  });
+
+  console.log('Built transaction:', {
+    sender: tx.rawTransaction.sender,
+    sequenceNumber: tx.rawTransaction.sequence_number,
+    gasUnitPrice: tx.rawTransaction.gas_unit_price,
+    maxGasAmount: tx.rawTransaction.max_gas_amount,
+  });
+
+  const s = new Serializer();
+  tx.rawTransaction.serialize(s);
+  const rawHex = Buffer.from(s.toUint8Array()).toString('hex');
+  return rawHex;
 }
 
 export async function buildMovementRawTransaction(
@@ -64,20 +48,26 @@ export async function buildMovementRawTransaction(
   typeArguments: string[],
   functionArguments: any[]
 ): Promise<string> {
+  const config = new AptosConfig({
+    network: Network.CUSTOM,
+    fullnode: 'https://full.mainnet.movementinfra.xyz/v1',
+  });
+  const aptos = new Aptos(config);
+
   try {
-    // Create a raw transaction
-    const rawTransaction = await aptos.transaction.build.rawTransaction({
+    const transaction = await aptos.transaction.build.simple({
       sender: senderAddress,
       data: {
-        function: functionName,
+        function: functionName as `${string}::${string}::${string}`,
         typeArguments,
         functionArguments,
       },
     });
 
-    // Convert to hex string
-    const rawHex = Buffer.from(rawTransaction).toString('hex');
-    return `0x${rawHex}`;
+    const serializer = new Serializer();
+    transaction.rawTransaction.serialize(serializer);
+    const rawHex = Buffer.from(serializer.toUint8Array()).toString('hex');
+    return rawHex;
   } catch (error) {
     console.error('Error building Movement raw transaction:', error);
     throw error;

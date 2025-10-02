@@ -1,10 +1,13 @@
 "use client";
+// Cache bust: 2024-01-15-aptos-account-transfer
 
+import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { VIEW_FUNCTIONS } from "../../lib/constants";
 import { callView } from "../../lib/contract";
 import { formatDurationHours, formatUsd } from "../../lib/format";
+import { buildMovementTransferRaw } from "../../lib/movement/rawTransaction";
 import { useNightly } from "../../lib/nightly/NightlyProvider";
 import { decryptWithSharedKey, deriveSharedSecret, encryptWithSharedKey, generateKeypair } from "../../lib/nightly/encryption";
 
@@ -34,6 +37,14 @@ export default function HomePage() {
       body: JSON.stringify({ message: logMessage })
     }).catch(() => { }); // Ignore errors
   };
+
+  // Initialize Aptos client for Movement
+  const aptosConfig = new AptosConfig({
+    network: Network.CUSTOM,
+    fullnode: 'https://full.mainnet.movementinfra.xyz/v1',
+    chainId: 126, // Movement Mainnet chain ID
+  });
+  const aptos = new Aptos(aptosConfig);
 
   const signTransactionViaDeeplink = async (payload: any) => {
     try {
@@ -73,10 +84,21 @@ export default function HomePage() {
       const { sessionId } = await res.json();
       addDebugLog(`✅ Transaction session created: ${sessionId}`);
 
-      // Build transaction payload for Movement - send AIP-63 directly
-      addDebugLog('Using direct AIP-63 format (no wrapper)');
+      // Build raw hex ONLY via serializer-based transfer builder
+      addDebugLog('Building rawHex via transfer builder...');
+      const receiver = String((payload.arguments || [])[0] || '');
+      const amountStr = String((payload.arguments || [])[1] || '0');
+      const amountNum = Number(amountStr);
+      addDebugLog(`Build inputs -> fn: ${payload.function}, type_args: ${JSON.stringify(payload.type_arguments || [])}`);
+      addDebugLog(`Build inputs -> receiver: ${receiver}, amountOctas(num): ${amountNum}`);
+      const rawHex = await buildMovementTransferRaw(address, receiver, amountNum);
+      addDebugLog(`✅ Raw hex built (len=${rawHex.length})`);
+      addDebugLog(`rawHex preview: ${rawHex.slice(0, 20)}...${rawHex.slice(-20)}`);
+
+      // Match mobile payload format exactly - simplified
+      const transactions = [JSON.stringify({ rawTransaction: rawHex })];
       const transactionPayload = {
-        transactions: [JSON.stringify(payload)], // Send AIP-63 directly
+        transactions,
         options: { submit: true }
       };
       addDebugLog(`Transaction payload: ${JSON.stringify(transactionPayload, null, 2)}`);
@@ -93,6 +115,8 @@ export default function HomePage() {
       const dataObj = {
         network: 'movement',
         cluster: 'mainnet',
+        rpcUrl: 'https://full.mainnet.movementinfra.xyz/v1',
+        chainId: '126',
         responseRoute: `${window.location.origin}/home?txSessionId=${sessionId}`,
         payload: payloadBase64,
         nonce: nonceBase58,
@@ -101,6 +125,7 @@ export default function HomePage() {
         appInfo: { name: 'SoberCash', icon: `${window.location.origin}/vercel.svg`, url: window.location.origin },
       };
       addDebugLog(`Data object: ${JSON.stringify(dataObj, null, 2)}`);
+      addDebugLog(`Deep link target: nightly://v1/direct/signTransactions`);
 
       const data = btoa(JSON.stringify(dataObj));
       const url = `nightly://v1/direct/signTransactions?data=${encodeURIComponent(data)}`;
@@ -453,6 +478,15 @@ export default function HomePage() {
           }}
           style={{ marginTop: '10px' }}
         >Check URL Parameters</button>
+        <button
+          className="btn secondary"
+          onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('cb', String(Date.now()));
+            window.location.href = url.toString();
+          }}
+          style={{ marginTop: '10px', marginLeft: '10px' }}
+        >Force Reload</button>
       </div>
 
       {nightly.connected && nightly.address && (
@@ -469,24 +503,21 @@ export default function HomePage() {
               }).then(() => console.log('Sent to server')).catch(e => console.log('Server error:', e));
 
               try {
-                addDebugLog('=== TEST TRANSFER BUTTON CLICKED ===');
-                // Test with a simple coin transfer with gas parameters
+                addDebugLog('=== TEST TRANSFER BUTTON CLICKED - V2 ===');
+                // Test with aptos_account::transfer_coins and AptosCoin type
                 const testTx = {
                   arguments: [
                     '0x0000000000000000000000000000000000000000000000000000000000000001', // recipient
-                    1, // 1 unit (very small amount)
+                    '1000', // 1000 octas for visibility
                   ],
-                  function: '0x1::coin::transfer',
-                  type: 'entry_function_payload',
+                  function: '0x1::aptos_account::transfer_coins',
                   type_arguments: ['0x1::aptos_coin::AptosCoin'],
-                  // Add gas parameters that Movement might need
-                  max_gas_amount: '200000',
-                  gas_unit_price: '100',
-                  expiration_timestamp_secs: Math.floor(Date.now() / 1000) + 600,
                 };
 
-                // Try sending AIP-63 transaction directly without wrapper
-                addDebugLog('Sending AIP-63 transaction directly...');
+                addDebugLog(`Using function: ${testTx.function}`);
+                addDebugLog(`Arguments: ${JSON.stringify(testTx.arguments)}`);
+                addDebugLog(`Type arguments: ${JSON.stringify(testTx.type_arguments)}`);
+                addDebugLog('Sending transaction via deeplink...');
                 await signTransactionViaDeeplink(testTx);
               } catch (e) {
                 addDebugLog(`Test transfer error: ${(e as Error).message}`);
