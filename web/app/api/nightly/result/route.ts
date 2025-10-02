@@ -9,11 +9,20 @@ type StoredResult = {
 
 // Access the shared session store and add a result store
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sessions: Map<string, { createdAt: number }> = (globalThis as any).__nightlySessionStore || new Map();
+let sessions: Map<string, { createdAt: number }> = (globalThis as any).__nightlySessionStore || new Map();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const results: Map<string, StoredResult> = (globalThis as any).__nightlyResultStore || new Map();
+let results: Map<string, StoredResult> = (globalThis as any).__nightlyResultStore || new Map();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).__nightlyResultStore = results;
+
+// Ensure we have the same session store reference
+function getSessionStore() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sessions = (globalThis as any).__nightlySessionStore || new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).__nightlySessionStore = sessions;
+  return sessions;
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -33,7 +42,10 @@ export async function POST(req: NextRequest) {
 
   console.log(`[NIGHTLY API] Processing result for sessionId: ${sessionId}, success: ${success}`);
 
-  if (!sessionId || !sessions.has(sessionId)) {
+  const sessionStore = getSessionStore();
+  console.log(`[NIGHTLY API] Available sessions: ${Array.from(sessionStore.keys()).join(', ')}`);
+  
+  if (!sessionId || !sessionStore.has(sessionId)) {
     console.log(`[NIGHTLY API] Unknown sessionId: ${sessionId}`);
     return new Response(JSON.stringify({ error: 'Unknown sessionId' }), { status: 400 });
   }
@@ -57,7 +69,10 @@ export async function GET(req: NextRequest) {
   const sessionId = searchParams.get('sessionId');
   console.log(`[NIGHTLY API] GET result request for sessionId: ${sessionId}`);
 
-  if (!sessionId || !sessions.has(sessionId)) {
+  const sessionStore = getSessionStore();
+  console.log(`[NIGHTLY API] Available sessions: ${Array.from(sessionStore.keys()).join(', ')}`);
+
+  if (!sessionId || !sessionStore.has(sessionId)) {
     console.log(`[NIGHTLY API] Unknown sessionId: ${sessionId}`);
     return new Response(JSON.stringify({ error: 'Unknown sessionId' }), { status: 400 });
   }

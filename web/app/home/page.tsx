@@ -39,8 +39,27 @@ export default function HomePage() {
     try {
       addDebugLog('=== STARTING TRANSACTION SIGNING ===');
       addDebugLog(`Payload: ${JSON.stringify(payload, null, 2)}`);
+      addDebugLog(`Shared secret state: ${sharedSecret ? 'present' : 'null'}`);
+      addDebugLog(`Shared secret length: ${sharedSecret ? sharedSecret.length : 'N/A'}`);
 
-      if (!sharedSecret) {
+      let secretToUse = sharedSecret;
+
+      // If no shared secret in state, try to get it from localStorage
+      if (!secretToUse) {
+        addDebugLog('No shared secret in state, checking localStorage...');
+        const storedSecret = localStorage.getItem('nightly_shared_secret');
+        if (storedSecret) {
+          try {
+            secretToUse = new Uint8Array(JSON.parse(storedSecret));
+            setSharedSecret(secretToUse);
+            addDebugLog('✅ Restored shared secret from localStorage');
+          } catch (e) {
+            addDebugLog(`Failed to parse stored secret: ${(e as Error).message}`);
+          }
+        }
+      }
+
+      if (!secretToUse) {
         addDebugLog('❌ No shared secret available - need to reconnect');
         setStatus('Please reconnect to Nightly first');
         return { hash: "error" };
@@ -54,17 +73,18 @@ export default function HomePage() {
       const { sessionId } = await res.json();
       addDebugLog(`✅ Transaction session created: ${sessionId}`);
 
-      // Build transaction payload for Movement
+      // Build transaction payload for Movement - send AIP-63 directly
+      addDebugLog('Using direct AIP-63 format (no wrapper)');
       const transactionPayload = {
-        transactions: [JSON.stringify({ rawTransaction: payload })],
-        options: { submit: true } // Let Nightly submit the transaction
+        transactions: [JSON.stringify(payload)], // Send AIP-63 directly
+        options: { submit: true }
       };
       addDebugLog(`Transaction payload: ${JSON.stringify(transactionPayload, null, 2)}`);
 
       // Encrypt the transaction payload using the shared secret
       addDebugLog('Encrypting transaction payload...');
       const { nonceBase58, payloadBase64 } = encryptWithSharedKey(
-        sharedSecret,
+        secretToUse,
         JSON.stringify(transactionPayload)
       );
       addDebugLog(`✅ Encrypted - nonce: ${nonceBase58.substring(0, 20)}..., payload: ${payloadBase64.substring(0, 50)}...`);
@@ -100,6 +120,22 @@ export default function HomePage() {
   useEffect(() => {
     if (nightly.address) setAddress(nightly.address);
   }, [nightly.address]);
+
+  // Check for existing shared secret on page load
+  useEffect(() => {
+    const storedSharedSecret = localStorage.getItem('nightly_shared_secret');
+    if (storedSharedSecret) {
+      try {
+        const sharedSecretArray = new Uint8Array(JSON.parse(storedSharedSecret));
+        setSharedSecret(sharedSecretArray);
+        addDebugLog('Restored shared secret from localStorage');
+      } catch (e) {
+        addDebugLog(`Failed to restore shared secret: ${(e as Error).message}`);
+      }
+    } else {
+      addDebugLog('No shared secret found in localStorage');
+    }
+  }, []);
 
   // Handle connection when returning from Nightly
   useEffect(() => {
@@ -191,6 +227,8 @@ export default function HomePage() {
             setAddress(addr);
             // Store the shared secret for transaction signing
             setSharedSecret(shared);
+            // Also store in localStorage for persistence
+            localStorage.setItem('nightly_shared_secret', JSON.stringify(Array.from(shared)));
             nightly.setAddress(addr);
             setStatus('Connected via Nightly');
             // Clean up URL and localStorage
@@ -432,22 +470,24 @@ export default function HomePage() {
 
               try {
                 addDebugLog('=== TEST TRANSFER BUTTON CLICKED ===');
+                // Test with a simple coin transfer with gas parameters
                 const testTx = {
                   arguments: [
-                    '0x0000000000000000000000000000000000000000000000000000000000000001',
-                    10, // 0.0000001 APT
+                    '0x0000000000000000000000000000000000000000000000000000000000000001', // recipient
+                    1, // 1 unit (very small amount)
                   ],
                   function: '0x1::coin::transfer',
                   type: 'entry_function_payload',
                   type_arguments: ['0x1::aptos_coin::AptosCoin'],
+                  // Add gas parameters that Movement might need
+                  max_gas_amount: '200000',
+                  gas_unit_price: '100',
+                  expiration_timestamp_secs: Math.floor(Date.now() / 1000) + 600,
                 };
 
-                if (nightly.client?.kind === 'deeplink') {
-                  await signTransactionViaDeeplink(testTx);
-                } else {
-                  await nightly.signAndSubmit(testTx);
-                  alert('Transaction sent!');
-                }
+                // Try sending AIP-63 transaction directly without wrapper
+                addDebugLog('Sending AIP-63 transaction directly...');
+                await signTransactionViaDeeplink(testTx);
               } catch (e) {
                 addDebugLog(`Test transfer error: ${(e as Error).message}`);
                 alert('Transaction failed: ' + (e as Error).message);
